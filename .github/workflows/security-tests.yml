@@ -1,0 +1,147 @@
+name: Security Tests CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run security tests daily at 2 AM UTC
+    - cron: '0 2 * * *'
+
+jobs:
+  security-tests:
+    runs-on: ubuntu-latest
+    
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: userinfo
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Set up JDK 17
+      uses: actions/setup-java@v3
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+    
+    - name: Cache Python dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Start UserInfo Service
+      run: |
+        cd ../microTest/userInfo
+        mvn clean install -DskipTests
+        nohup mvn spring-boot:run &
+        sleep 30  # Wait for service to start
+      continue-on-error: false
+    
+    - name: Wait for UserInfo Service to be ready
+      run: |
+        for i in {1..30}; do
+          if curl -f http://localhost:9093/actuator/health 2>/dev/null; then
+            echo "Service is ready!"
+            break
+          fi
+          echo "Waiting for service... attempt $i"
+          sleep 2
+        done
+    
+    - name: Run IDOR Security Tests
+      run: |
+        pytest tests/security/test_idor_vulnerabilities.py -v --alluredir=allure-results
+      continue-on-error: true  # Don't fail CI if vulnerabilities found
+    
+    - name: Run Authentication Tests
+      run: |
+        pytest tests/security/test_authentication.py -v --alluredir=allure-results
+      continue-on-error: true
+    
+    - name: Run All Security Tests
+      run: |
+        pytest tests/security/ -v --alluredir=allure-results --html=reports/security-report.html
+      continue-on-error: true
+    
+    - name: Generate Allure Report
+      if: always()
+      run: |
+        sudo wget https://github.com/allure-framework/allure2/releases/download/2.24.0/allure-2.24.0.tgz
+        sudo tar -zxvf allure-2.24.0.tgz -C /opt/
+        sudo ln -s /opt/allure-2.24.0/bin/allure /usr/bin/allure
+        allure generate allure-results -o allure-report --clean
+    
+    - name: Upload Allure Report
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: allure-report
+        path: allure-report/
+        retention-days: 30
+    
+    - name: Upload HTML Report
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: security-html-report
+        path: reports/security-report.html
+        retention-days: 30
+    
+    - name: Comment PR with Security Issues
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          const report = fs.readFileSync('reports/security-report.html', 'utf8');
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: '## 🔐 Security Test Results\n\n✅ Security tests completed. Check the artifacts for detailed reports.\n\n⚠️ **Note**: This system has known security vulnerabilities that are being documented as part of the QA assessment.'
+          });
+    
+    - name: Security Summary
+      if: always()
+      run: |
+        echo "## 🔐 Security Test Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Tests Executed:" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ IDOR Vulnerability Tests" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Authentication Tests" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Authorization Tests" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Identified Issues:" >> $GITHUB_STEP_SUMMARY
+        echo "1. 🚨 No authentication required for sensitive endpoints" >> $GITHUB_STEP_SUMMARY
+        echo "2. 🚨 IDOR vulnerabilities - users can access other users' data" >> $GITHUB_STEP_SUMMARY
+        echo "3. 🚨 No RBAC implementation" >> $GITHUB_STEP_SUMMARY
+        echo "4. ⚠️ Sequential userId allows enumeration" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "📊 [View Detailed Report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY

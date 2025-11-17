@@ -1,0 +1,120 @@
+{
+  "schema_version": "1.0",
+  "services": {
+    "userinfo": {
+      "description": "User information service",
+      "endpoint": "http://localhost:9093",
+      "fields": {
+        "userId": {
+          "piiLevel": 1,
+          "piiLevelName": "INTERNAL",
+          "retention": "RETAIN_1_YEAR",
+          "description": "Internal user identifier",
+          "required": true
+        },
+        "username": {
+          "piiLevel": 3,
+          "piiLevelName": "HIGHLY_SENSITIVE",
+          "retention": "DELETE_ON_REQUEST",
+          "description": "Can identify individual user",
+          "required": true
+        },
+        "userPassword": {
+          "piiLevel": 4,
+          "piiLevelName": "CRITICAL",
+          "retention": "DELETE_IMMEDIATELY",
+          "description": "Authentication credential - must be hashed",
+          "required": true,
+          "shouldBeHashed": true
+        },
+        "address": {
+          "piiLevel": 2,
+          "piiLevelName": "SENSITIVE",
+          "retention": "DELETE_ON_REQUEST",
+          "description": "User's delivery address",
+          "required": true
+        },
+        "city": {
+          "piiLevel": 2,
+          "piiLevelName": "SENSITIVE",
+          "retention": "DELETE_ON_REQUEST",
+          "description": "User's city for delivery",
+          "required": true
+        }
+      }
+    },
+    "order": {
+      "description": "Order management service",
+      "endpoint": "http://localhost:8082",
+      "fields": {
+        "orderId": {
+          "piiLevel": 1,
+          "piiLevelName": "INTERNAL",
+          "retention": "RETAIN_7_YEARS",
+          "description": "Order identifier"
+        },
+        "userDTO": {
+          "piiLevel": 3,
+          "piiLevelName": "HIGHLY_SENSITIVE",
+          "retention": "RETAIN_7_YEARS",
+          "description": "User information in order",
+          "inheritsFrom": "userinfo"
+        }
+      }
+    },
+    "payment": {
+      "description": "Payment processing service",
+      "endpoint": "http://localhost:9095",
+      "fields": {
+        "userId": {
+          "piiLevel": 3,
+          "piiLevelName": "HIGHLY_SENSITIVE",
+          "retention": "RETAIN_7_YEARS",
+          "description": "User making payment"
+        },
+        "amount": {
+          "piiLevel": 4,
+          "piiLevelName": "CRITICAL",
+          "retention": "RETAIN_7_YEARS",
+          "description": "Payment amount - financial data"
+        }
+      }
+    },
+    "restaurant": {
+      "description": "Restaurant information service",
+      "endpoint": "http://localhost:8083",
+      "fields": {
+        "name": {
+          "piiLevel": 0,
+          "piiLevelName": "PUBLIC",
+          "retention": "RETAIN_INDEFINITE",
+          "description": "Restaurant name"
+        },
+        "address": {
+          "piiLevel": 0,
+          "piiLevelName": "PUBLIC",
+          "retention": "RETAIN_INDEFINITE",
+          "description": "Public business address"
+        }
+      }
+    },
+    "foodCatalog": {
+      "description": "Food catalog service",
+      "endpoint": "http://localhost:8084",
+      "fields": {
+        "itemName": {
+          "piiLevel": 0,
+          "piiLevelName": "PUBLIC",
+          "retention": "RETAIN_INDEFINITE",
+          "description": "Food item name"
+        },
+        "price": {
+          "piiLevel": 0,
+          "piiLevelName": "PUBLIC",
+          "retention": "RETAIN_INDEFINITE",
+          "description": "Food item price"
+        }
+      }
+    }
+  }
+}

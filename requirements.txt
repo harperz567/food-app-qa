@@ -1,0 +1,15 @@
+# Testing framework
+pytest==7.4.0
+
+# Browser automation
+selenium==4.14.0
+webdriver-manager==4.0.1
+
+# Test reporting
+allure-pytest==2.13.2
+
+# API testing
+requests==2.31.0
+
+# Data handling
+pytest-html==3.2.0
